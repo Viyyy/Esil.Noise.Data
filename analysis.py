@@ -124,4 +124,4 @@ def plt2ndarray(figure):
 
 def plt2wandbImage(figure):
     arr = plt2ndarray(figure)
-    wandb.Image(arr, mode="RGB")
+    return wandb.Image(arr, mode="RGB")
