@@ -1,0 +1,6 @@
+wandb
+torch
+torchaudio
+matplotlib
+numpy
+librosa
