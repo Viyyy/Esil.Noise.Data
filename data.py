@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from functools import cache
 from collections import Counter
 import torch
+import torchaudio
 
 GRAPH_PATH = os.path.join(os.path.dirname(__file__),"graph.json")
 
@@ -261,9 +262,10 @@ class MyDataset(torch.utils.data.Dataset):
         """
         label = self.category[label_idx]
         dir_ = label[dir_idx]
-        file_ = os.path.join(self.base_dir, dir_, f"{label.name}_{file_idx}.wav")
-        # signal, sr = torchaudio.load(file_)
-        return file_, label.id
+        filename = dir_.replace("\\",'/').split('/')[-1]
+        file_ = os.path.join(self.base_dir, dir_, f"{filename}_{file_idx}.wav")
+        signal, sr = torchaudio.load(file_)
+        return signal, label.id
 
 
 def main():
