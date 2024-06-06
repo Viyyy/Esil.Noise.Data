@@ -7,8 +7,7 @@ from functools import cache
 from collections import Counter
 import torch
 
-GRAPH_PATH = "graph.json"
-
+GRAPH_PATH = os.path.join(os.path.dirname(__file__),"graph.json")
 
 class LabelBase(ABC):
     def __init__(self, name: str, id=None):
@@ -65,9 +64,6 @@ class Label(LabelBase):
     def __repr__(self):
         return f"Label(name={self.name}, id={self.id})"
 
-
-
-
 class CustomLabel(LabelBase):
     def __init__(self, name, labels: dict[str, list[str]], id: int = None):
         
@@ -102,7 +98,6 @@ class CustomLabel(LabelBase):
                 graph_str += f"     |->{cc}\n"
         return graph_str
 
-
 class Category:
     def __init__(self, labels: list[LabelBase], name: str = None):
         self.name = name
@@ -131,8 +126,7 @@ class Category:
     def append(self, label: LabelBase):
         self.labels.append(label)
         self.__sort__()
-    
-        
+       
     def __len__(self):
         return len(self.labels)
 
@@ -235,10 +229,6 @@ class Category:
 
         ret = cls(name=name, labels=labels)
         return ret
-
-
-
-
 
 class MyDataset(torch.utils.data.Dataset):
 # class MyDataset():
