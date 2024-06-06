@@ -230,6 +230,9 @@ class Category:
         ret = cls(name=name, labels=labels)
         return ret
 
+    def __repr__(self):
+        return f'Category(name="{self.name}", labels={self.labels})'
+
 class MyDataset(torch.utils.data.Dataset):
 # class MyDataset():
     # 1200 files in each dir
