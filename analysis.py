@@ -8,14 +8,18 @@ import torchaudio.transforms as T
 from PIL import Image
 from io import BytesIO
 import wandb
+import gc
 
-FIG_SIZE = (8,4)
+FIG_SIZE = (8, 4)
+
 
 def get_spectrogram(n_fft=512):
     return T.Spectrogram(n_fft=n_fft)
 
 
-def get_mel_spectrogram(sr:int, n_fft=1024, win_length=None, hop_length=512, n_mels=128):
+def get_mel_spectrogram(
+    sr: int, n_fft=1024, win_length=None, hop_length=512, n_mels=128
+):
     mel_spectrogram = T.MelSpectrogram(
         sample_rate=sr,
         n_fft=n_fft,
@@ -30,22 +34,24 @@ def get_mel_spectrogram(sr:int, n_fft=1024, win_length=None, hop_length=512, n_m
     )
     return mel_spectrogram
 
+
 def a_weighting(frequencies):
-    '''
+    """
     A-weighting function to compensate for the perceptual effect of human hearing.
-    '''
+    """
     ra = (12200**2 * frequencies**4) / (
-        (frequencies**2 + 20.6**2) *
-        (frequencies**2 + 12200**2) *
-        np.sqrt((frequencies**2 + 107.7**2) * (frequencies**2 + 737.9**2))
+        (frequencies**2 + 20.6**2)
+        * (frequencies**2 + 12200**2)
+        * np.sqrt((frequencies**2 + 107.7**2) * (frequencies**2 + 737.9**2))
     )
     a_weight = 2.00 + 20 * np.log10(ra)
     return a_weight
 
-def plot_frequency_spectrogram(signal:Union[np.ndarray, torch.Tensor], sr:int):
+
+def plot_frequency_spectrogram(signal: Union[np.ndarray, torch.Tensor], sr: int):
     if isinstance(signal, torch.Tensor):
         signal = signal.mean(axis=0).flatten().numpy()
-        
+
     # 2. 进行傅里叶变换
     D = np.abs(librosa.stft(signal))
 
@@ -58,29 +64,36 @@ def plot_frequency_spectrogram(signal:Union[np.ndarray, torch.Tensor], sr:int):
 
     # 5. 应用A加权曲线
     a_weight = a_weighting(frequencies)
-    a_weighted_spectrum = magnitude_spectrum * 10**(a_weight / 20)
+    a_weighted_spectrum = magnitude_spectrum * 10 ** (a_weight / 20)
 
     # 6. 转换为分贝值
     # 分贝值 = 20 * log10(幅度)
-    db_spectrum = 20 * np.log10(a_weighted_spectrum + 1e-6)  # 加上一个小值以避免 log(0)
+    ref = 2e-5  # 参考值
+    db_spectrum = 20 * np.log10(a_weighted_spectrum/ref+ 1e-6)  # 加上一个小值以避免 log(0)
 
     # 7. 计算Leq
-    Leq = 10 * np.log10(np.mean(a_weighted_spectrum**2) + 1e-6)
-    
+    Leq = 10 * np.log10(np.mean((a_weighted_spectrum/ref)**2) + 1e-6)
+
     # 找到最大分贝值及其对应的频率
     max_db_index = np.argmax(db_spectrum)
     max_db_value = db_spectrum[max_db_index]
     max_db_frequency = frequencies[max_db_index]
     fig = plt.figure(figsize=FIG_SIZE)
     plt.plot(frequencies, db_spectrum)
-    plt.xlabel('Frequency (Hz)')
-    plt.ylabel('Magnitude (dB)')
-    plt.title('Frequency Spectrum')
-    plt.axvline(x=max_db_frequency, color='r', linestyle='--')
-    plt.text(max_db_frequency+1000, max_db_value, f'{max_db_frequency:.0f} Hz:{max_db_value:.2f} dB', color='red', ha='right')
+    plt.xlabel("Frequency (Hz)")
+    plt.ylabel("Magnitude (dB)")
+    plt.title("Frequency Spectrum")
+    plt.axvline(x=max_db_frequency, color="r", linestyle="--")
+    plt.text(
+        max_db_frequency + 1000,
+        max_db_value,
+        f"{max_db_frequency:.0f} Hz:{max_db_value:.2f} dB",
+        color="red",
+        ha="right",
+    )
     return fig, Leq
-    
-    
+
+
 def plot_waveform(waveform, sr, title="Waveform", ax=None):
     waveform = waveform.numpy()
 
@@ -89,11 +102,13 @@ def plot_waveform(waveform, sr, title="Waveform", ax=None):
 
     if ax is None:
         fig, ax = plt.subplots(num_channels, 1, figsize=FIG_SIZE)
+    t = type(ax)
     ax.plot(time_axis, waveform[0], linewidth=1)
     ax.grid(True)
     ax.set_xlim([0, time_axis[-1]])
     ax.set_title(title)
     return fig
+
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin", ax=None):
     if ax is None:
@@ -101,7 +116,12 @@ def plot_spectrogram(specgram, title=None, ylabel="freq_bin", ax=None):
     if title is not None:
         ax.set_title(title)
     ax.set_ylabel(ylabel)
-    ax.imshow(librosa.power_to_db(specgram), origin="lower", aspect="auto", interpolation="nearest")
+    ax.imshow(
+        librosa.power_to_db(specgram),
+        origin="lower",
+        aspect="auto",
+        interpolation="nearest",
+    )
     return fig
 
 
@@ -113,15 +133,54 @@ def plot_fbank(fbank, title=None):
     axs.set_xlabel("mel bin")
     return fig
 
+
 def plt2ndarray(figure):
-    buf = BytesIO() 
-    figure.savefig(buf, format="jpg") # 将 Matplotlib 图像保存到内存中的一个缓冲区
+    buf = BytesIO()
+    figure.savefig(buf, format="jpg")  # 将 Matplotlib 图像保存到内存中的一个缓冲区
     buf.seek(0)
-    image = Image.open(buf) # 使用 Pillow 打开缓冲区中的图像
-    image_array = np.array(image) # 将 Pillow 图像转换为 NumPy 数组
-    buf.close() # 关闭缓冲区
-    return image_array # jpg: RGB, png: RGBA
+    image = Image.open(buf)  # 使用 Pillow 打开缓冲区中的图像
+    image_array = np.array(image)  # 将 Pillow 图像转换为 NumPy 数组
+    buf.close()  # 关闭缓冲区
+    return image_array  # jpg: RGB, png: RGBA
+
 
 def plt2wandbImage(figure):
     arr = plt2ndarray(figure)
     return wandb.Image(arr, mode="RGB")
+
+def get_analysis_data(file_path):
+    try:
+        spectrogram = get_spectrogram()
+        signal, sr = torchaudio.load(file_path)  # load signal and sample rate
+        
+        if signal.shape[0] > 1:
+            signal = signal.mean(axis=0, keepdim=True)  # if multiple channels, take the mean
+        mel_spectrogram = get_mel_spectrogram(sr=sr)
+
+        waveform_fig = plot_waveform(signal, sr, title="Original waveform")
+        # plot spectrogram
+        spec = spectrogram(signal)
+        spect_fig = plot_spectrogram(spec[0], title="spectrogram")
+
+        # plot mel_spectrogram
+        melspec = mel_spectrogram(signal)
+        mel_fig = plot_spectrogram(melspec[0], title="MelSpectrogram", ylabel="mel freq")
+
+        # plot frequecy spectrum
+        freq_fig, Leq = plot_frequency_spectrogram(signal, sr)
+
+        # file audio sr Leq waveform spectrogram mel_spectrogram frequency_spectrum
+        return (
+            file_path.split("\\")[-1].split("_")[0].replace(".wav", ""),
+            wandb.Audio(signal.mean(axis=0).flatten().numpy(), sample_rate=sr),
+            sr,
+            Leq,
+            plt2wandbImage(waveform_fig),
+            plt2wandbImage(spect_fig),
+            plt2wandbImage(mel_fig),
+            plt2wandbImage(freq_fig),
+        )
+    finally:
+        plt.close("all")
+        plt.clf()
+        gc.collect()
